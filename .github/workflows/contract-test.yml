@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [dev]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -99,7 +101,7 @@ jobs:
         run: bash contract-tests/scripts/snapshot-responses.sh
 
       - name: Run Swift contract tests
-        run: cd contract-tests && swift test --enable-code-coverage
+        run: cd contract-tests && swift test --enable-code-coverage --xunit-output test-results.xml
 
       - name: Export coverage to lcov
         if: always()
@@ -126,6 +128,13 @@ jobs:
           slug: sleepypod/ios
           files: contract-tests/lcov.info
           flags: contract-tests
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: contract-tests/test-results.xml
 
       - name: Stop server
         if: always()
