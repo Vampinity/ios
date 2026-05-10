@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build:
@@ -124,7 +125,7 @@ jobs:
         if: always()
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
           slug: sleepypod/ios
           files: contract-tests/lcov.info
           flags: contract-tests
@@ -133,7 +134,8 @@ jobs:
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
+          slug: sleepypod/ios
           files: contract-tests/test-results.xml
 
       - name: Stop server
