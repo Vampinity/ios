@@ -2,12 +2,19 @@
   "name": "Sleepypod",
   "identifier": "com.jonathanng.ios.sleepypod.source",
   "subtitle": "Local control for Eight Sleep Pod",
+  "iconURL": "https://media.githubusercontent.com/media/sleepypod/ios/main/Sleepypod/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+  "website": "https://github.com/sleepypod/ios",
   "apps": [
     {
       "name": "Sleepypod",
       "bundleIdentifier": "com.jonathanng.ios.sleepypod",
       "developerName": "sleepypod",
+      "subtitle": "Temperature, sleep tracking and biometrics",
       "localizedDescription": "Temperature control, sleep tracking and biometrics for a self-hosted Eight Sleep Pod.",
+      "iconURL": "https://media.githubusercontent.com/media/sleepypod/ios/main/Sleepypod/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+      "tintColor": "1E3A5F",
+      "category": "utilities",
+      "screenshotURLs": [],
       "versions": [
         {
           "version": "0.1.0",
