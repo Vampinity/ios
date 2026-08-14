@@ -1,0 +1,117 @@
+# Put this in YOUR FORK at .github/workflows/build-ipa.yml
+# Builds an unsigned Sleepypod IPA and attaches it to a GitHub release,
+# then regenerates source.json (AltStore repo format) on main.
+#
+# Trigger: manually, or automatically whenever a tag vX.Y.Z is pushed.
+
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install npm deps
+        run: npm ci || npm install
+
+      - name: Strip HealthKit entitlement
+        run: |
+          # third-party signing certs never carry health-records
+          cat > Sleepypod/Sleepypod.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict/>
+          </plist>
+          PLIST
+          sed -i '' '/com.apple.developer.healthkit/,+3d' project.yml || true
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Archive unsigned
+        run: |
+          xcodebuild archive \
+            -project Sleepypod.xcodeproj \
+            -scheme Sleepypod \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Sleepypod.xcarchive \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" CODE_SIGN_STYLE=Manual
+
+      - name: Package IPA
+        id: pkg
+        run: |
+          APP=build/Sleepypod.xcarchive/Products/Applications/Sleepypod.app
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          rm -rf build/Payload/Sleepypod.app/_CodeSignature
+          VER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+                build/Payload/Sleepypod.app/Info.plist)
+          (cd build && zip -qry "Sleepypod-unsigned.ipa" Payload)
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "size=$(stat -f%z build/Sleepypod-unsigned.ipa)" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pkg.outputs.tag }}
+          files: build/Sleepypod-unsigned.ipa
+
+      - name: Regenerate source.json
+        run: |
+          REPO="${{ github.repository }}"
+          cat > source.json <<EOF
+          {
+            "name": "Sleepypod",
+            "identifier": "com.jonathanng.ios.sleepypod.source",
+            "subtitle": "Local control for Eight Sleep Pod",
+            "apps": [
+              {
+                "name": "Sleepypod",
+                "bundleIdentifier": "com.jonathanng.ios.sleepypod",
+                "developerName": "sleepypod",
+                "localizedDescription": "Temperature control, sleep tracking, biometrics and on-device analysis for a self-hosted Eight Sleep Pod.",
+                "versions": [
+                  {
+                    "version": "${{ steps.pkg.outputs.version }}",
+                    "date": "$(date -u +%Y-%m-%d)",
+                    "localizedDescription": "See release notes on GitHub.",
+                    "downloadURL": "https://github.com/$REPO/releases/download/${{ steps.pkg.outputs.tag }}/Sleepypod-unsigned.ipa",
+                    "size": ${{ steps.pkg.outputs.size }},
+                    "minOSVersion": "26.0"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Commit source.json
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout main
+          git add source.json
+          git diff --staged --quiet || git commit -m "chore: update source.json [skip ci]"
+          git push
