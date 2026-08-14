@@ -1,0 +1,24 @@
+{
+  "name": "Sleepypod",
+  "identifier": "com.jonathanng.ios.sleepypod.source",
+  "subtitle": "Local control for Eight Sleep Pod",
+  "apps": [
+    {
+      "name": "Sleepypod",
+      "bundleIdentifier": "com.jonathanng.ios.sleepypod",
+      "developerName": "sleepypod",
+      "localizedDescription": "Temperature control, sleep tracking and biometrics for a self-hosted Eight Sleep Pod.",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "buildVersion": "1",
+          "date": "2026-08-14",
+          "localizedDescription": "Self-built IPA, signed locally.",
+          "downloadURL": "https://github.com/Vampinity/ios/releases/download/v1.2.5/Sleepypod-unsigned.ipa",
+          "size": 1563084,
+          "minOSVersion": "26.0"
+        }
+      ]
+    }
+  ]
+}
