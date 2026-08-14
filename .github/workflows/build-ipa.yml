@@ -1,9 +1,3 @@
-# Put this in YOUR FORK at .github/workflows/build-ipa.yml
-# Builds an unsigned Sleepypod IPA and attaches it to a GitHub release,
-# then regenerates source.json (AltStore repo format) on main.
-#
-# Trigger: manually, or automatically whenever a tag vX.Y.Z is pushed.
-
 name: Build unsigned IPA
 
 on:
@@ -20,9 +14,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-
-      - name: Select Xcode 26
-        run: sudo xcode-select -s /Applications/Xcode_26.app
+        with:
+          fetch-depth: 0
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -32,7 +25,6 @@ jobs:
 
       - name: Strip HealthKit entitlement
         run: |
-          # third-party signing certs never carry health-records
           cat > Sleepypod/Sleepypod.entitlements <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -40,7 +32,12 @@ jobs:
           <dict/>
           </plist>
           PLIST
-          sed -i '' '/com.apple.developer.healthkit/,+3d' project.yml || true
+          sed -i '' \
+            -e '/^      properties:$/d' \
+            -e '/com.apple.developer.healthkit/d' \
+            -e '/- health-records/d' \
+            project.yml
+          cat project.yml
 
       - name: Generate project
         run: xcodegen generate
@@ -80,7 +77,6 @@ jobs:
 
       - name: Regenerate source.json
         run: |
-          REPO="${{ github.repository }}"
           cat > source.json <<EOF
           {
             "name": "Sleepypod",
@@ -91,13 +87,14 @@ jobs:
                 "name": "Sleepypod",
                 "bundleIdentifier": "com.jonathanng.ios.sleepypod",
                 "developerName": "sleepypod",
-                "localizedDescription": "Temperature control, sleep tracking, biometrics and on-device analysis for a self-hosted Eight Sleep Pod.",
+                "localizedDescription": "Temperature control, sleep tracking and biometrics for a self-hosted Eight Sleep Pod.",
                 "versions": [
                   {
                     "version": "${{ steps.pkg.outputs.version }}",
+                    "buildVersion": "1",
                     "date": "$(date -u +%Y-%m-%d)",
-                    "localizedDescription": "See release notes on GitHub.",
-                    "downloadURL": "https://github.com/$REPO/releases/download/${{ steps.pkg.outputs.tag }}/Sleepypod-unsigned.ipa",
+                    "localizedDescription": "Self-built IPA, signed locally.",
+                    "downloadURL": "https://github.com/${{ github.repository }}/releases/download/${{ steps.pkg.outputs.tag }}/Sleepypod-unsigned.ipa",
                     "size": ${{ steps.pkg.outputs.size }},
                     "minOSVersion": "26.0"
                   }
@@ -106,6 +103,7 @@ jobs:
             ]
           }
           EOF
+          cat source.json
 
       - name: Commit source.json
         run: |
