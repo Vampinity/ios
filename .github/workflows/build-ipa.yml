@@ -16,7 +16,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+
+      - name: Restore LFS image assets
+        run: |
+          git lfs install
+          git remote add upstream https://github.com/sleepypod/ios.git || true
+          git lfs fetch upstream || true
+          git lfs checkout || true
+          # any PNG still an LFS pointer gets a generated placeholder so
+          # the asset catalog can compile (forks do not inherit LFS objects)
+          for f in $(git ls-files '*.png'); do
+            if head -c 40 "$f" | grep -q "git-lfs.github.com"; then
+              echo "placeholder: $f"
+              python3 - "$f" <<'PY'
+          import sys, zlib, struct
+          path = sys.argv[1]
+          w = h = 1024
+          rows = b''.join(b'\x00' + bytes([26, 42, 74, 255]) * w for _ in range(h))
+          def chunk(tag, data):
+              body = tag + data
+              return struct.pack('>I', len(data)) + body + struct.pack('>I', zlib.crc32(body) & 0xffffffff)
+          png = (b'\x89PNG\r\n\x1a\n'
+                 + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
+                 + chunk(b'IDAT', zlib.compress(rows, 6))
+                 + chunk(b'IEND', b''))
+          open(path, 'wb').write(png)
+          PY
+            fi
+          done
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -110,9 +137,9 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
+          git checkout -- . || true
           git fetch origin dev
           git checkout dev
-          git checkout HEAD -- project.yml Sleepypod/Sleepypod.entitlements || true
           git add source.json
           git diff --staged --quiet || git commit -m "chore: update source.json [skip ci]"
           git push origin dev
